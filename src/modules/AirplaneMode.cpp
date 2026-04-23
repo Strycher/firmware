@@ -15,12 +15,6 @@ static constexpr const char *kKeySaveWifi = "apm_save_wifi";
 static constexpr const char *kKeySaveBt = "apm_save_bt";
 static constexpr const char *kKeySaveLora = "apm_save_lora";
 
-// isActive() is called every frame from drawCommonHeader; cache the flag to
-// avoid a blocking NVS read on each render. Initialized lazily on first
-// access, invalidated/rewritten by toggle().
-static bool s_cachedActive = false;
-static bool s_cachedActiveLoaded = false;
-
 AirplaneMode &AirplaneMode::instance()
 {
     static AirplaneMode singleton;
@@ -85,11 +79,11 @@ static bool loadPreAirplaneState(bool &wifi, bool &bt, bool &lora)
 bool AirplaneMode::isActive() const
 {
 #ifdef ARCH_ESP32
-    if (!s_cachedActiveLoaded) {
-        s_cachedActive = readActiveFlag();
-        s_cachedActiveLoaded = true;
+    if (!cachedActiveLoaded) {
+        cachedActive = readActiveFlag();
+        cachedActiveLoaded = true;
     }
-    return s_cachedActive;
+    return cachedActive;
 #else
     return false;
 #endif
@@ -107,7 +101,7 @@ void AirplaneMode::toggle()
         config.bluetooth.enabled = false;
         config.lora.tx_enabled = false;
         writeActiveFlag(true);
-        s_cachedActive = true;
+        cachedActive = true;
     } else {
         bool wifi = true, bt = true, lora = true;
         if (!loadPreAirplaneState(wifi, bt, lora))
@@ -116,9 +110,9 @@ void AirplaneMode::toggle()
         config.bluetooth.enabled = bt;
         config.lora.tx_enabled = lora;
         writeActiveFlag(false);
-        s_cachedActive = false;
+        cachedActive = false;
     }
-    s_cachedActiveLoaded = true;
+    cachedActiveLoaded = true;
 
     if (nodeDB)
         nodeDB->saveToDisk(SEGMENT_CONFIG);

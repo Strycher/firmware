@@ -21,4 +21,11 @@ class AirplaneMode
 
     // Toggle enter/exit. Persists config + state flag, schedules reboot.
     void toggle();
+
+  private:
+    // Cached active flag to avoid a blocking NVS read per isActive() call
+    // (called every frame from drawCommonHeader). Populated lazily; kept in
+    // sync by toggle(). mutable so isActive() can remain const.
+    mutable bool cachedActive = false;
+    mutable bool cachedActiveLoaded = false;
 };
