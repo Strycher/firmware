@@ -22,7 +22,7 @@
 #endif
 #include <ESPmDNS.h>
 #include <esp_wifi.h>
-#ifdef MESHTASTIC_DUAL_RF
+#ifdef MESHTASTIC_WIFI_BLE_COEX
 #include <esp_coexist.h>
 #endif
 static void WiFiEvent(WiFiEvent_t event);
@@ -306,7 +306,7 @@ bool initWifi()
 #ifdef ARCH_ESP32
             WiFi.onEvent(WiFiEvent);
             WiFi.setAutoReconnect(true);
-#ifdef MESHTASTIC_DUAL_RF
+#ifdef MESHTASTIC_WIFI_BLE_COEX
             // Let WiFi release the radio between DTIM beacons so BLE gets coex slots.
             WiFi.setSleep(true);
             esp_wifi_set_ps(WIFI_PS_MIN_MODEM);

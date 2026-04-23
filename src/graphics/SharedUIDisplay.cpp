@@ -130,7 +130,7 @@ void drawCommonHeader(OLEDDisplay *display, int16_t x, int16_t y, const char *ti
         } else {
             const char *headerTitle = titleStr ? titleStr : "";
             const int titleWidth = UIRenderer::measureStringWithEmotes(display, headerTitle);
-            const int titleX = (SCREEN_WIDTH - titleWidth) / 2;
+            const int titleX = (screenW - titleWidth) / 2;
             UIRenderer::drawStringWithEmotes(display, titleX, y, headerTitle, FONT_HEIGHT_SMALL, 1, config.display.heading_bold);
         }
     }
