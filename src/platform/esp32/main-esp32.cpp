@@ -32,7 +32,13 @@ void variant_shutdown() {}
 #if !defined(CONFIG_IDF_TARGET_ESP32S2) && !MESHTASTIC_EXCLUDE_BLUETOOTH
 void setBluetoothEnable(bool enable)
 {
-#ifdef USE_WS5500
+// MESHTASTIC_DUAL_RF: let WiFi and BLE both run. The ESP32-S3 hardware coex
+// arbiter supports this fine; the historical XOR gate here predates NimBLE +
+// ESP-IDF 5.x coex and was a conservative workaround, not a necessity.
+// Without this flag, behavior is unchanged from upstream.
+#if defined(MESHTASTIC_DUAL_RF)
+    if (config.bluetooth.enabled == true)
+#elif defined(USE_WS5500)
     if ((config.bluetooth.enabled == true) && (config.network.wifi_enabled == false))
 #elif HAS_WIFI
     if (!isWifiAvailable() && config.bluetooth.enabled == true)

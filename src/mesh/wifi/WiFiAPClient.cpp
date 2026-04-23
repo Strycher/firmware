@@ -22,6 +22,9 @@
 #endif
 #include <ESPmDNS.h>
 #include <esp_wifi.h>
+#ifdef MESHTASTIC_DUAL_RF
+#include <esp_coexist.h>
+#endif
 static void WiFiEvent(WiFiEvent_t event);
 #elif defined(ARCH_RP2040)
 #include <SimpleMDNS.h>
@@ -303,10 +306,23 @@ bool initWifi()
 #ifdef ARCH_ESP32
             WiFi.onEvent(WiFiEvent);
             WiFi.setAutoReconnect(true);
+#ifdef MESHTASTIC_DUAL_RF
+            // Dual-RF coex mode: allow WiFi to release the 2.4 GHz radio between
+            // DTIM beacons so the hardware coex arbiter can schedule BLE
+            // advertising slots. Without these knobs, WiFi monopolizes the radio
+            // and NimBLE advertisements are never transmitted on ESP32-S3.
+            WiFi.setSleep(true);
+            esp_wifi_set_ps(WIFI_PS_MIN_MODEM);
+            // Balance arbiter between WiFi and BLE. Default (ESP_COEX_PREFER_BALANCE
+            // on paper) is effectively WiFi-biased on many ESP-IDF versions — set
+            // explicitly so we know what we're getting.
+            esp_coex_preference_set(ESP_COEX_PREFER_BALANCE);
+#else
             WiFi.setSleep(false);
 
             // This is needed to improve performance.
             esp_wifi_set_ps(WIFI_PS_NONE); // Disable radio power saving
+#endif
 
             WiFi.onEvent(
                 [](WiFiEvent_t event, WiFiEventInfo_t info) {
