@@ -14,6 +14,9 @@ AirplaneMode &AirplaneMode::instance()
 
 bool AirplaneMode::isActive() const
 {
+    // Derived from live config: if all three radios are disabled, we consider
+    // the device in airplane mode regardless of how it got there (menu, CLI,
+    // or phone app). Exiting via the menu re-enables all three.
     return !config.network.wifi_enabled && !config.bluetooth.enabled && !config.lora.tx_enabled;
 }
 

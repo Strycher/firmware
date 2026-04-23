@@ -124,9 +124,9 @@ void drawCommonHeader(OLEDDisplay *display, int16_t x, int16_t y, const char *ti
 
         // === Screen Title ===
         if (AirplaneMode::instance().isActive()) {
-            const int iconX = (screenW - airplane_width) / 2;
-            const int iconY = y + (highlightHeight - airplane_height) / 2;
-            display->drawXbm(iconX, iconY, airplane_width, airplane_height, airplane);
+            const int iconX = (screenW - icon_airplane_width) / 2;
+            const int iconY = y + (highlightHeight - icon_airplane_height) / 2;
+            display->drawXbm(iconX, iconY, icon_airplane_width, icon_airplane_height, icon_airplane);
         } else {
             const char *headerTitle = titleStr ? titleStr : "";
             const int titleWidth = UIRenderer::measureStringWithEmotes(display, headerTitle);
