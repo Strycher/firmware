@@ -17,6 +17,22 @@
 namespace graphics
 {
 
+// Small airplane icon for the status bar when airplane mode is active.
+// 8x8 XBM, LSB-first. Stylized top-down silhouette: nose, wings, fuselage, tail.
+static constexpr uint8_t kAirplaneIconWidth = 8;
+static constexpr uint8_t kAirplaneIconHeight = 8;
+static const unsigned char kAirplaneIcon[] PROGMEM = {
+    0b00011000, // ...##...  nose
+    0b00011000, // ...##...
+    0b11111111, // ########  main wings
+    0b11111111, // ########
+    0b00011000, // ...##...  fuselage
+    0b00011000, // ...##...
+    0b00111100, // ..####..  tail wings
+    0b00111100, // ..####..
+};
+
+
 ScreenResolution determineScreenResolution(int16_t screenheight, int16_t screenwidth)
 {
 
@@ -122,19 +138,23 @@ void drawCommonHeader(OLEDDisplay *display, int16_t x, int16_t y, const char *ti
         }
 
         // === Screen Title ===
-        // When airplane mode is active (all three radios disabled), overwrite the
-        // screen title with an unambiguous indicator. This replaces what would
-        // otherwise be "Nodes" / "Messages" / etc., but in airplane mode the per-
-        // screen title is less informative than the system-wide status anyway.
-        const char *headerTitle;
         if (AirplaneMode::instance().isActive()) {
-            headerTitle = (currentResolution == ScreenResolution::UltraLow) ? "AIRPLANE" : "AIRPLANE MODE";
+            // Draw a compact airplane icon centered in the title position. Icon is
+            // much narrower than "AIRPLANE MODE" text was, so it doesn't collide
+            // with the battery % on the left or the mail/mute/time cluster on the
+            // right. The per-screen title is suppressed while in airplane mode —
+            // the system-wide indicator takes priority over e.g. "Nodes" / "Home".
+            const int iconX = (screenW - kAirplaneIconWidth) / 2;
+            const int iconY = y + (highlightHeight - kAirplaneIconHeight) / 2;
+            // Inverted header background already set BLACK color on white bar;
+            // drawXbm respects the current color, so the icon renders correctly.
+            display->drawXbm(iconX, iconY, kAirplaneIconWidth, kAirplaneIconHeight, kAirplaneIcon);
         } else {
-            headerTitle = titleStr ? titleStr : "";
+            const char *headerTitle = titleStr ? titleStr : "";
+            const int titleWidth = UIRenderer::measureStringWithEmotes(display, headerTitle);
+            const int titleX = (SCREEN_WIDTH - titleWidth) / 2;
+            UIRenderer::drawStringWithEmotes(display, titleX, y, headerTitle, FONT_HEIGHT_SMALL, 1, config.display.heading_bold);
         }
-        const int titleWidth = UIRenderer::measureStringWithEmotes(display, headerTitle);
-        const int titleX = (SCREEN_WIDTH - titleWidth) / 2;
-        UIRenderer::drawStringWithEmotes(display, titleX, y, headerTitle, FONT_HEIGHT_SMALL, 1, config.display.heading_bold);
     }
     display->setTextAlignment(TEXT_ALIGN_LEFT);
 
