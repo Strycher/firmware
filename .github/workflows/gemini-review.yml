@@ -1,0 +1,199 @@
+name: Gemini Review (warn-only)
+
+# Warn-only Gemini 2.5 Pro code review on PRs that touch firmware source.
+# Sends the diff + the domain prompt; posts the response as a PR comment.
+# Every step is continue-on-error and the workflow always exits 0, so a
+# missing secret / API error / unparseable response surfaces as a visible
+# PR comment rather than a silent pass.
+
+on:
+  pull_request:
+    branches: [main, develop]
+    types: [opened, synchronize, reopened]
+    paths:
+      - "src/**"
+      - "variants/**"
+      - "protobufs/**"
+      - "platformio.ini"
+      - "**/platformio.ini"
+
+concurrency:
+  group: gemini-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Collect PR diff
+        id: diff
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -u
+          mkdir -p .gemini-review
+          gh pr diff "${{ github.event.pull_request.number }}" \
+            > .gemini-review/diff.patch || true
+          bytes=$(wc -c < .gemini-review/diff.patch | tr -d ' ')
+          echo "diff_bytes=${bytes}" >> "$GITHUB_OUTPUT"
+          head -c 200000 .gemini-review/diff.patch \
+            > .gemini-review/diff.capped.patch
+          if [ "${bytes}" -gt 200000 ]; then
+            echo "TRUNCATED=true" >> "$GITHUB_ENV"
+          else
+            echo "TRUNCATED=false" >> "$GITHUB_ENV"
+          fi
+
+      - name: Load review prompt
+        id: prompt
+        continue-on-error: true
+        run: |
+          set -u
+          PROMPT_FILE=".github/gemini-prompts/meshtastic-firmware.md"
+          if [ -f "$PROMPT_FILE" ]; then
+            echo "prompt_found=true" >> "$GITHUB_OUTPUT"
+            cp "$PROMPT_FILE" .gemini-review/prompt.md
+          else
+            echo "prompt_found=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Call Gemini API
+        id: gemini
+        continue-on-error: true
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          set -u
+          if [ -z "${GEMINI_API_KEY:-}" ]; then
+            echo "status=missing_secret" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ ! -f .gemini-review/prompt.md ]; then
+            echo "status=missing_prompt" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ ! -s .gemini-review/diff.capped.patch ]; then
+            echo "status=empty_diff" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          jq -n \
+            --rawfile prompt .gemini-review/prompt.md \
+            --rawfile diff   .gemini-review/diff.capped.patch \
+            --arg truncated  "${TRUNCATED:-false}" \
+            '{
+              contents: [{
+                role: "user",
+                parts: [
+                  { text: $prompt },
+                  { text: ("\n\n---\n\nPR diff (truncated=" + $truncated + "):\n\n```diff\n" + $diff + "\n```") }
+                ]
+              }],
+              generationConfig: { temperature: 0.2, maxOutputTokens: 8192 }
+            }' > .gemini-review/request.json
+
+          http_status=$(curl -sS -o .gemini-review/response.json -w '%{http_code}' \
+            -X POST \
+            -H 'Content-Type: application/json' \
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=${GEMINI_API_KEY}" \
+            --data-binary @.gemini-review/request.json || echo "000")
+
+          echo "http_status=${http_status}" >> "$GITHUB_OUTPUT"
+          if [ "${http_status}" != "200" ]; then
+            echo "status=api_error" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if jq -e '.candidates[0].content.parts[0].text' \
+               .gemini-review/response.json > /dev/null 2>&1; then
+            jq -r '.candidates[0].content.parts[0].text' \
+              .gemini-review/response.json > .gemini-review/review.md
+            echo "status=ok" >> "$GITHUB_OUTPUT"
+          else
+            echo "status=unparseable_response" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Post PR comment
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STATUS: ${{ steps.gemini.outputs.status }}
+          HTTP: ${{ steps.gemini.outputs.http_status }}
+          PROMPT_FOUND: ${{ steps.prompt.outputs.prompt_found }}
+          DIFF_BYTES: ${{ steps.diff.outputs.diff_bytes }}
+        run: |
+          set -u
+          body_file=.gemini-review/comment.md
+          header="### Gemini Review (warn-only)"
+
+          case "${STATUS:-unknown}" in
+            ok)
+              {
+                echo "$header"
+                echo ""
+                cat .gemini-review/review.md
+                echo ""
+                echo "<sub>Warn-only — this check never blocks merge.</sub>"
+              } > "$body_file"
+              ;;
+            missing_secret)
+              {
+                echo "$header"
+                echo ""
+                echo "GEMINI_API_KEY secret is not configured. Automated review did not run."
+              } > "$body_file"
+              ;;
+            missing_prompt)
+              {
+                echo "$header"
+                echo ""
+                echo "Prompt file .github/gemini-prompts/meshtastic-firmware.md not found. Automated review did not run."
+              } > "$body_file"
+              ;;
+            empty_diff)
+              {
+                echo "$header"
+                echo ""
+                echo "No diff to review."
+              } > "$body_file"
+              ;;
+            api_error)
+              {
+                echo "$header"
+                echo ""
+                echo "Gemini API call failed (HTTP ${HTTP:-n/a}). Automated review did not run."
+              } > "$body_file"
+              ;;
+            unparseable_response)
+              {
+                echo "$header"
+                echo ""
+                echo "Gemini returned an unparseable response. Automated review did not run."
+              } > "$body_file"
+              ;;
+            *)
+              {
+                echo "$header"
+                echo ""
+                echo "Review step did not complete (status=${STATUS:-unknown})."
+              } > "$body_file"
+              ;;
+          esac
+
+          gh pr comment "${{ github.event.pull_request.number }}" \
+            --body-file "$body_file" || true
+
+      - name: Warn-only exit
+        run: exit 0
