@@ -32,7 +32,11 @@ void variant_shutdown() {}
 #if !defined(CONFIG_IDF_TARGET_ESP32S2) && !MESHTASTIC_EXCLUDE_BLUETOOTH
 void setBluetoothEnable(bool enable)
 {
-#ifdef USE_WS5500
+// MESHTASTIC_WIFI_BLE_COEX: bypass the WiFi-XOR-BLE gate so both can run on the
+// hardware coex arbiter.
+#if defined(MESHTASTIC_WIFI_BLE_COEX)
+    if (config.bluetooth.enabled == true)
+#elif defined(USE_WS5500)
     if ((config.bluetooth.enabled == true) && (config.network.wifi_enabled == false))
 #elif HAS_WIFI
     if (!isWifiAvailable() && config.bluetooth.enabled == true)

@@ -8,6 +8,7 @@
 #include "graphics/draw/UIRenderer.h"
 #include "main.h"
 #include "meshtastic/config.pb.h"
+#include "modules/AirplaneMode.h"
 #include "modules/ExternalNotificationModule.h"
 #include "power.h"
 #include <OLEDDisplay.h>
@@ -15,6 +16,7 @@
 
 namespace graphics
 {
+
 
 ScreenResolution determineScreenResolution(int16_t screenheight, int16_t screenwidth)
 {
@@ -121,10 +123,16 @@ void drawCommonHeader(OLEDDisplay *display, int16_t x, int16_t y, const char *ti
         }
 
         // === Screen Title ===
-        const char *headerTitle = titleStr ? titleStr : "";
-        const int titleWidth = UIRenderer::measureStringWithEmotes(display, headerTitle);
-        const int titleX = (SCREEN_WIDTH - titleWidth) / 2;
-        UIRenderer::drawStringWithEmotes(display, titleX, y, headerTitle, FONT_HEIGHT_SMALL, 1, config.display.heading_bold);
+        if (AirplaneMode::instance().isActive()) {
+            const int iconX = (screenW - icon_airplane_width) / 2;
+            const int iconY = y + (highlightHeight - icon_airplane_height) / 2;
+            display->drawXbm(iconX, iconY, icon_airplane_width, icon_airplane_height, icon_airplane);
+        } else {
+            const char *headerTitle = titleStr ? titleStr : "";
+            const int titleWidth = UIRenderer::measureStringWithEmotes(display, headerTitle);
+            const int titleX = (screenW - titleWidth) / 2;
+            UIRenderer::drawStringWithEmotes(display, titleX, y, headerTitle, FONT_HEIGHT_SMALL, 1, config.display.heading_bold);
+        }
     }
     display->setTextAlignment(TEXT_ALIGN_LEFT);
 

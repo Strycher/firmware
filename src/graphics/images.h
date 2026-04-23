@@ -71,6 +71,12 @@ const unsigned char batteryBitmap_sidegaps_v[] PROGMEM = {0b10000010, 0b10000010
 // Lightning Bolt
 const unsigned char lightning_bolt_v[] PROGMEM = {0b00000100, 0b00000110, 0b00011111, 0b00001100, 0b00000100};
 
+#define icon_airplane_width 8
+#define icon_airplane_height 8
+static const unsigned char icon_airplane[] PROGMEM = {
+    0b00011000, 0b00011000, 0b11111111, 0b11111111, 0b00011000, 0b00011000, 0b00111100, 0b00111100,
+};
+
 #define mail_width 10
 #define mail_height 7
 static const unsigned char mail[] PROGMEM = {

@@ -34,6 +34,7 @@ class menuHandler
         BrightnessPicker,
         RebootMenu,
         ShutdownMenu,
+        AirplaneModeMenu,
         NodePickerMenu,
         ManageNodeMenu,
         RemoveFavorite,
@@ -95,6 +96,7 @@ class menuHandler
     static void BrightnessPickerMenu();
     static void rebootMenu();
     static void shutdownMenu();
+    static void airplaneModeMenu();
     static void NodePicker();
     static void manageNodeMenu();
     static void addFavoriteMenu();
