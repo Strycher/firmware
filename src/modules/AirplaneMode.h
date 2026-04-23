@@ -2,7 +2,7 @@
 
 #include "configuration.h"
 
-#if HAS_SCREEN || defined(ARCH_ESP32)
+#if HAS_SCREEN
 
 #include <Arduino.h>
 
