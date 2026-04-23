@@ -1,7 +1,5 @@
 #include "AirplaneMode.h"
 
-#if HAS_SCREEN
-
 #include "NodeDB.h"
 #include "configuration.h"
 #include "main.h"
@@ -12,6 +10,7 @@
 
 // Shared with main-esp32.cpp's reboot counter namespace.
 static constexpr const char *kNvsNs = "meshtastic";
+static constexpr const char *kKeyActive = "apm_active";
 static constexpr const char *kKeyWifi = "apm_sv_wifi";
 static constexpr const char *kKeyBt = "apm_sv_bt";
 static constexpr const char *kKeyLora = "apm_sv_lora";
@@ -22,20 +21,35 @@ AirplaneMode &AirplaneMode::instance()
     return singleton;
 }
 
-bool AirplaneMode::isActive() const
+#ifdef ARCH_ESP32
+static bool readActiveFlag()
 {
-    // Derived from live config: if all three radios are disabled, we consider
-    // the device in airplane mode regardless of how it got there (menu, CLI,
-    // or phone app).
-    return !config.network.wifi_enabled && !config.bluetooth.enabled && !config.lora.tx_enabled;
+    Preferences prefs;
+    if (!prefs.begin(kNvsNs, true)) {
+        LOG_ERROR("AirplaneMode: Preferences.begin(ro) failed; assuming inactive");
+        return false;
+    }
+    bool active = prefs.isKey(kKeyActive) ? prefs.getBool(kKeyActive, false) : false;
+    prefs.end();
+    return active;
 }
 
-#ifdef ARCH_ESP32
+static void writeActiveFlag(bool active)
+{
+    Preferences prefs;
+    if (!prefs.begin(kNvsNs, false)) {
+        LOG_ERROR("AirplaneMode: Preferences.begin(rw) failed; active flag WILL NOT persist");
+        return;
+    }
+    prefs.putBool(kKeyActive, active);
+    prefs.end();
+}
+
 static void savePreAirplaneState(bool wifi, bool bt, bool lora)
 {
     Preferences prefs;
     if (!prefs.begin(kNvsNs, false)) {
-        LOG_ERROR("AirplaneMode: Preferences.begin failed; saved state WILL NOT persist");
+        LOG_ERROR("AirplaneMode: Preferences.begin(rw) failed; saved radio state WILL NOT persist");
         return;
     }
     prefs.putBool(kKeyWifi, wifi);
@@ -47,8 +61,10 @@ static void savePreAirplaneState(bool wifi, bool bt, bool lora)
 static bool loadPreAirplaneState(bool &wifi, bool &bt, bool &lora)
 {
     Preferences prefs;
-    if (!prefs.begin(kNvsNs, true))
+    if (!prefs.begin(kNvsNs, true)) {
+        LOG_ERROR("AirplaneMode: Preferences.begin(ro) failed; cannot read saved radio state");
         return false;
+    }
     bool have = prefs.isKey(kKeyWifi) && prefs.isKey(kKeyBt) && prefs.isKey(kKeyLora);
     if (have) {
         wifi = prefs.getBool(kKeyWifi, true);
@@ -58,35 +74,44 @@ static bool loadPreAirplaneState(bool &wifi, bool &bt, bool &lora)
     prefs.end();
     return have;
 }
+#endif // ARCH_ESP32
+
+bool AirplaneMode::isActive() const
+{
+#ifdef ARCH_ESP32
+    return readActiveFlag();
+#else
+    return false;
 #endif
+}
 
 void AirplaneMode::toggle()
 {
+#ifdef ARCH_ESP32
     bool turningOn = !isActive();
     LOG_WARN("AirplaneMode: %s", turningOn ? "entering" : "exiting");
 
     if (turningOn) {
-#ifdef ARCH_ESP32
         savePreAirplaneState(config.network.wifi_enabled, config.bluetooth.enabled, config.lora.tx_enabled);
-#endif
         config.network.wifi_enabled = false;
         config.bluetooth.enabled = false;
         config.lora.tx_enabled = false;
+        writeActiveFlag(true);
     } else {
         bool wifi = true, bt = true, lora = true;
-#ifdef ARCH_ESP32
         if (!loadPreAirplaneState(wifi, bt, lora))
             LOG_WARN("AirplaneMode: no saved pre-airplane state; defaulting all radios on");
-#endif
         config.network.wifi_enabled = wifi;
         config.bluetooth.enabled = bt;
         config.lora.tx_enabled = lora;
+        writeActiveFlag(false);
     }
 
     if (nodeDB)
         nodeDB->saveToDisk(SEGMENT_CONFIG);
 
     rebootAtMsec = millis() + 2000;
+#else
+    LOG_WARN("AirplaneMode: toggle unsupported on this platform (no NVS backend)");
+#endif
 }
-
-#endif // HAS_SCREEN
