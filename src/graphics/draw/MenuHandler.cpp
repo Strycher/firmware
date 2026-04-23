@@ -20,6 +20,7 @@
 #include "mesh/MeshTypes.h"
 #include "mesh/RadioLibInterface.h"
 #include "modules/AdminModule.h"
+#include "modules/AirplaneMode.h"
 #include "modules/CannedMessageModule.h"
 #include "modules/ExternalNotificationModule.h"
 #include "modules/KeyVerificationModule.h"
@@ -2177,6 +2178,31 @@ void menuHandler::shutdownMenu()
     screen->showOverlayBanner(bannerOptions);
 }
 
+void menuHandler::airplaneModeMenu()
+{
+    static const char *optionsArray[] = {"Back", "Confirm"};
+    BannerOverlayOptions bannerOptions;
+    bool active = AirplaneMode::instance().isActive();
+    bannerOptions.message = active ? "Exit Airplane Mode? Device will reboot." : "Airplane Mode? All radios off. Device will reboot.";
+    if (currentResolution == ScreenResolution::UltraLow) {
+        bannerOptions.message = active ? "Exit Airplane?" : "Airplane?";
+    }
+    bannerOptions.optionsArrayPtr = optionsArray;
+    bannerOptions.optionsCount = 2;
+    bannerOptions.bannerCallback = [](int selected) -> void {
+        if (selected == 1) {
+            IF_SCREEN(screen->showSimpleBanner(AirplaneMode::instance().isActive() ? "Exiting airplane mode..."
+                                                                                   : "Entering airplane mode...",
+                                               0));
+            AirplaneMode::instance().toggle();
+        } else {
+            menuQueue = PowerMenu;
+            screen->runNow();
+        }
+    };
+    screen->showOverlayBanner(bannerOptions);
+}
+
 void menuHandler::removeFavoriteMenu()
 {
 
@@ -2377,9 +2403,9 @@ void menuHandler::screenOptionsMenu()
 void menuHandler::powerMenu()
 {
 
-    enum optionsNumbers { Back, Reboot, Shutdown, MUI };
-    static const char *optionsArray[4] = {"Back"};
-    static int optionsEnumArray[4] = {Back};
+    enum optionsNumbers { Back, Reboot, Shutdown, Airplane, MUI };
+    static const char *optionsArray[5] = {"Back"};
+    static int optionsEnumArray[5] = {Back};
     int options = 1;
 
     optionsArray[options] = "Reboot";
@@ -2387,6 +2413,11 @@ void menuHandler::powerMenu()
 
     optionsArray[options] = "Shutdown";
     optionsEnumArray[options++] = Shutdown;
+
+    // Airplane mode always-available — no build-flag gate. Label reflects
+    // current state so the user knows what Confirm will do.
+    optionsArray[options] = AirplaneMode::instance().isActive() ? "Exit Airplane" : "Airplane Mode";
+    optionsEnumArray[options++] = Airplane;
 
 #if HAS_TFT
     optionsArray[options] = "Switch to MUI";
@@ -2407,6 +2438,9 @@ void menuHandler::powerMenu()
             screen->runNow();
         } else if (selected == Shutdown) {
             menuHandler::menuQueue = menuHandler::ShutdownMenu;
+            screen->runNow();
+        } else if (selected == Airplane) {
+            menuHandler::menuQueue = menuHandler::AirplaneModeMenu;
             screen->runNow();
         } else if (selected == MUI) {
             menuHandler::menuQueue = menuHandler::MuiPicker;
@@ -2738,6 +2772,9 @@ void menuHandler::handleMenuSwitch(OLEDDisplay *display)
         break;
     case ShutdownMenu:
         shutdownMenu();
+        break;
+    case AirplaneModeMenu:
+        airplaneModeMenu();
         break;
     case NodePickerMenu:
         NodePicker();
