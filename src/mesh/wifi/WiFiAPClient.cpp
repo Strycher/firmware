@@ -307,15 +307,9 @@ bool initWifi()
             WiFi.onEvent(WiFiEvent);
             WiFi.setAutoReconnect(true);
 #ifdef MESHTASTIC_DUAL_RF
-            // Dual-RF coex mode: allow WiFi to release the 2.4 GHz radio between
-            // DTIM beacons so the hardware coex arbiter can schedule BLE
-            // advertising slots. Without these knobs, WiFi monopolizes the radio
-            // and NimBLE advertisements are never transmitted on ESP32-S3.
+            // Let WiFi release the radio between DTIM beacons so BLE gets coex slots.
             WiFi.setSleep(true);
             esp_wifi_set_ps(WIFI_PS_MIN_MODEM);
-            // Balance arbiter between WiFi and BLE. Default (ESP_COEX_PREFER_BALANCE
-            // on paper) is effectively WiFi-biased on many ESP-IDF versions — set
-            // explicitly so we know what we're getting.
             esp_coex_preference_set(ESP_COEX_PREFER_BALANCE);
 #else
             WiFi.setSleep(false);

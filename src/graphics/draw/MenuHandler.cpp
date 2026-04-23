@@ -2414,8 +2414,6 @@ void menuHandler::powerMenu()
     optionsArray[options] = "Shutdown";
     optionsEnumArray[options++] = Shutdown;
 
-    // Airplane mode always-available — no build-flag gate. Label reflects
-    // current state so the user knows what Confirm will do.
     optionsArray[options] = AirplaneMode::instance().isActive() ? "Exit Airplane" : "Airplane Mode";
     optionsEnumArray[options++] = Airplane;
 
