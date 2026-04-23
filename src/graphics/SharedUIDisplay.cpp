@@ -8,6 +8,7 @@
 #include "graphics/draw/UIRenderer.h"
 #include "main.h"
 #include "meshtastic/config.pb.h"
+#include "modules/AirplaneMode.h"
 #include "modules/ExternalNotificationModule.h"
 #include "power.h"
 #include <OLEDDisplay.h>
@@ -121,7 +122,16 @@ void drawCommonHeader(OLEDDisplay *display, int16_t x, int16_t y, const char *ti
         }
 
         // === Screen Title ===
-        const char *headerTitle = titleStr ? titleStr : "";
+        // When airplane mode is active (all three radios disabled), overwrite the
+        // screen title with an unambiguous indicator. This replaces what would
+        // otherwise be "Nodes" / "Messages" / etc., but in airplane mode the per-
+        // screen title is less informative than the system-wide status anyway.
+        const char *headerTitle;
+        if (AirplaneMode::instance().isActive()) {
+            headerTitle = (currentResolution == ScreenResolution::UltraLow) ? "AIRPLANE" : "AIRPLANE MODE";
+        } else {
+            headerTitle = titleStr ? titleStr : "";
+        }
         const int titleWidth = UIRenderer::measureStringWithEmotes(display, headerTitle);
         const int titleX = (SCREEN_WIDTH - titleWidth) / 2;
         UIRenderer::drawStringWithEmotes(display, titleX, y, headerTitle, FONT_HEIGHT_SMALL, 1, config.display.heading_bold);
